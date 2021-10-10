@@ -8,7 +8,7 @@ An interpreter written from scratch in C that implements my extensions of Arthro
 
     - Windows (MinGW-w64) and MS-DOS (DJGPP):
 
-          `gcc exdotsf.c -o exdotsf.exe`
+        `gcc exdotsf.c -o exdotsf.exe`
 
     - Windows (clang):
 
