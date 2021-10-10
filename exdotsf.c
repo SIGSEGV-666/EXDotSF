@@ -171,6 +171,7 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
     dotsf_stack* stack = NULL;
     ierank1 = 0;
     int count = 0;
+    int status1, status2, status3, status4;
     for (unsigned int si = 0; si < DOTSF_MAX_STACKS; si++)
     {
         _dotsf_delete_stack(interp, si);
@@ -380,8 +381,61 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                     if (!_dotsf_push(interp, v1)){return -54;}
                     ip = hashopend;
                     break;
+                case 's':
+                    hashopend = strchr(ip, '\\');
+                    if (hashopend-(ip+1) >= DOTSF_MAX_HASHOP_VAL_SIZE){return -51;}
+                    memset(hashopval, 0, DOTSF_MAX_HASHOP_VAL_SIZE);
+                    memcpy(hashopval, ip+1, hashopend-(ip+1));
+                    if (strcmp(hashopval, "ns") == 0) //create new stack.
+                    {
+                        if (!_dotsf_pop(interp, &v2)){return -61;}
+                        else if (!_dotsf_pop(interp, &v1)){return -62;}
+                        else {if ((status1 = _dotsf_create_stack(interp, v1, v2, NULL)) != 0){return -(62+status1);}}
+                    }
+                    else if (strcmp(hashopval, "ds") == 0) //delete stack.
+                    {
+                        if (!_dotsf_pop(interp, &v1)){return -70;}
+                        else if ((status1 = _dotsf_delete_stack(interp, v1)) != 0){return -(70+status1);}
+                    }
+                    else if (strcmp(hashopval, "tfa") == 0) //pop the top element off another stack and push it to the current stack's top.
+                    {
+                        if (!_dotsf_pop(interp, &v1)){return -80;}
+                        else if (!_dotsf_pop_from_stack(interp, v1, &v2)){return -81;}
+                        else if (!_dotsf_push(interp, v2)){return -82;}
+                    }
+                    else if (strcmp(hashopval, "tfb") == 0) //peeks another stack's top value and pushes it to top of the current stack.
+                    {
+                        if (!_dotsf_pop(interp, &v1)){return -83;}
+                        else if (!_dotsf_gettop(interp, v1, &v2)){return -84;}
+                        else if (!_dotsf_push(interp, v2)){return -85;}
+                    }
+                    else if (strcmp(hashopval, "tfc") == 0) //pops the last value before the given stack index off the top of the current stack and pushes it to the top of the other stack with the given index.
+                    {
+                        if (!_dotsf_pop(interp, &v2)){return -90;}
+                        else if (!_dotsf_pop(interp, &v1)){return -91;}
+                        else if (!_dotsf_push_to_stack(interp, v2, v1)){return -92;}
+                    }
+                    else if (strcmp(hashopval, "tfd") == 0) //similar to tfc but peeks the value from the top of the current instead.
+                    {
+                        if (!_dotsf_pop(interp, &v2)){return -93;}
+                        else if (!_dotsf_gettop(interp, interp->curstack, &v1)){return -94;}
+                        else if (!_dotsf_push_to_stack(interp, v2, v1)){return -95;}
+                    }
+                    else if (strcmp(hashopval, "gcs") == 0) //pushes the current stack index to the top of the current stack.
+                    {
+                        if (!_dotsf_push(interp, interp->curstack)){return -86;}
+                    }
+                    else if (strcmp(hashopval, "scs") == 0) //pops a value off the top of the current stack and use it to set the current stack index.
+                    {
+                        if (!_dotsf_pop(interp, &v1)){return -87;}
+                        stack = interp->stacks+v1;
+                        if (!stack->in_use){return -88;}
+                        if (v1 < 0 && v1 >= DOTSF_MAX_STACKS){return -89;}
+                        interp->curstack = v1;
+                    }
+                    ip = hashopend;
+                    break;
                 default: return -60;
-
             }
         }
         else if (*ip == '`')
