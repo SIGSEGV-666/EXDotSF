@@ -8,20 +8,20 @@ My extension of ArthroStar11's DotSF esolang
 
 Windows (MinGW-w64) and MS-DOS (DJGPP):
 
-  gcc exdotsf.c -o exdotsf.exe
+  `gcc exdotsf.c -o exdotsf.exe`
 
 Windows (clang):
 
- clang exdotsf.c -o exdotsf.exe
+ `clang exdotsf.c -o exdotsf.exe`
 
 Linux, FreeBSD, and other *nixes (architecture agnostic):
 
- gcc exdotsf.c -o exdotsf
+ `gcc exdotsf.c -o exdotsf`
 
-OR
+*OR*
  
- clang exdotsf.c -o exdotsf
+ `clang exdotsf.c -o exdotsf`
 
 # Running an EXDotSF program
 
- [./]exdotsf[.exe] <path to text file containing the EXDotSF program you wish to run>
+ `[./]exdotsf[.exe] <path to text file containing the EXDotSF program you wish to run>`
