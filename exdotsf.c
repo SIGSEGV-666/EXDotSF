@@ -1,8 +1,8 @@
 /*
-    EXDotSF
-     An interpreter implementing an extension of ArthroStar11's DotSF esolang
+    EXDotSF, an interpreter implementing an extension of ArthroStar11's DotSF esolang.
     exdotsf.c is written by Rudolph#4268 (https://github.com/SIGSEGV-666 || https://esolangs.org/wiki/User:Rudolph4268 || fzerowipeoutlover1998@gmail.com)
     DISCLAIMER: This does not use any code from ArthroStar11's original DotSF interpreter. This implementation has been completely written from scratch by me.
+    esolangs.org wiki page for EXDotSF: https://esolangs.org/wiki/EXDotSF
 
 BSD 3-Clause License
 
