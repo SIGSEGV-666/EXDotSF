@@ -45,61 +45,121 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <time.h>
 #include <stdint.h>
 #include <stdbool.h>
-#define DOTSF_MAXSTACK 30000
+#define DOTSF_MAX_STACKS 10
+#define DOTSF_MAX_STACK_SIZE 30000
 #define DOTSF_MAX_HASHOP_VAL_SIZE 65
 typedef int dotsf_int;
-
 typedef struct {
-    dotsf_int stack[DOTSF_MAXSTACK];
-    unsigned int stacktop;
-    bool stackempty;
-
+    bool in_use;
+    dotsf_int *stack, stacktop, maxstack;
+} dotsf_stack;
+typedef struct {
+    dotsf_stack stacks[DOTSF_MAX_STACKS];
+    unsigned int curstack;
 } dotsf_interpreter;
+bool _dotsf_push_to_stack(dotsf_interpreter* interp, dotsf_int stacknum, dotsf_int value)
+{
+    if (stacknum < 0 || stacknum >= DOTSF_MAX_STACKS){return false;}
+    dotsf_stack* stack = interp->stacks+stacknum;
+    if (!stack->in_use){return false;}
+    if (stack->stacktop < 0){stack->stack[0] = value; stack->stacktop = 0; return true;}
+    else if (stack->stacktop >= 0 && stack->stacktop <= stack->maxstack){stack->stack[++(stack->stacktop)] = value; return true;} 
+    return false;   
+}
 bool _dotsf_push(dotsf_interpreter* interp, dotsf_int value)
 {
-    if (interp->stackempty){interp->stackempty = false; interp->stacktop = 0; interp->stack[0] = value; return true;}
-    if (interp->stacktop < DOTSF_MAXSTACK){interp->stack[++interp->stacktop] = value; return true;} 
+    return _dotsf_push_to_stack(interp, interp->curstack, value);
+}
+bool _dotsf_pop_from_stack(dotsf_interpreter* interp, dotsf_int stacknum, dotsf_int* ret)
+{
+    if (stacknum < 0 || stacknum >= DOTSF_MAX_STACKS){return false;}
+    dotsf_stack* stack = interp->stacks+stacknum;
+    if (!stack->in_use){return false;}
+    if (stack->stacktop >= 0){*ret = stack->stack[(stack->stacktop)--]; return true;}
     return false;
 }
 bool _dotsf_pop(dotsf_interpreter* interp, dotsf_int* ret)
 {
-    if (!interp->stackempty)
-    {
-        if (interp->stacktop == 0){*ret = interp->stack[0]; interp->stackempty = true;}
-        else {*ret = interp->stack[interp->stacktop--];}
-        return true;
-    }
-    return false;
+    return _dotsf_pop_from_stack(interp, interp->curstack, ret);
 }
-bool _dotsf_popbottom(dotsf_interpreter* interp, dotsf_int* ret)
+bool _dotsf_popbottom(dotsf_interpreter* interp, dotsf_int stacknum, dotsf_int* ret)
 {
-    if (!interp->stackempty)
+    if (stacknum < 0 || stacknum >= DOTSF_MAX_STACKS){return false;}
+    dotsf_stack* stack = interp->stacks+stacknum;
+    if (stack->stacktop >= 0)
     {
-        *ret = interp->stack[0];
-        if (interp->stacktop == 0){interp->stackempty = true;}
-        else {for (unsigned int i = 1; i <= interp->stacktop; i++){interp->stack[i-1] = interp->stack[i];} interp->stacktop--;}
+        *ret = stack->stack[0];
+        for (dotsf_int i = 1; i <= stack->stacktop; i++){stack->stack[i-1] = stack->stack[i];} stack->stacktop--;
         return true;
     }
     return false;
 }
-bool _dotsf_popb_pusht(dotsf_interpreter* interp)
+bool _dotsf_popb_pusht(dotsf_interpreter* interp, dotsf_int stacknum)
 {
     dotsf_int v;
-    if (!_dotsf_popbottom(interp, &v)){return false;}
-    if (!_dotsf_push(interp, v)){return false;}
+    if (!_dotsf_popbottom(interp, stacknum, &v)){return false;}
+    if (!_dotsf_push_to_stack(interp, stacknum, v)){return false;}
     return true;
 }
-bool _dotsf_gettop(dotsf_interpreter* interp, dotsf_int* out)
+bool _dotsf_gettop(dotsf_interpreter* interp, dotsf_int stacknum, dotsf_int* out)
 {
-    if (interp->stackempty){return false;}
-    *out = interp->stack[interp->stacktop];
+    if (stacknum < 0 || stacknum >= DOTSF_MAX_STACKS){return false;}
+    dotsf_stack* stack = interp->stacks+stacknum;
+    if (stack->stacktop < 0){return false;}
+    *out = stack->stack[stack->stacktop];
     return true;
 }
-bool _dotsf_getbottom(dotsf_interpreter* interp, dotsf_int* out)
+bool _dotsf_getbottom(dotsf_interpreter* interp, dotsf_int stacknum, dotsf_int* out)
 {
-    if (interp->stackempty){return false;}
-    *out = interp->stack[0];
+    if (stacknum < 0 || stacknum >= DOTSF_MAX_STACKS){return false;}
+    dotsf_stack* stack = interp->stacks+stacknum;
+    if (stack->stacktop < 0){return false;}
+    *out = stack->stack[0];
     return true;
+}
+int _dotsf_delete_stack(dotsf_interpreter* interp, dotsf_int stacknum)
+{
+    if (stacknum < 0 || stacknum >= DOTSF_MAX_STACKS){return 1;}
+    dotsf_stack* stack = interp->stacks+stacknum;
+    if (stack->in_use)
+    {
+        free(stack->stack);
+        stack->stack = NULL;
+        stack->maxstack = 0;
+        stack->stacktop = -1;
+        stack->in_use = false;
+        return 0;
+    }
+    return 2;
+}
+int _dotsf_create_stack(dotsf_interpreter* interp, dotsf_int stacknum, dotsf_int maxstack, dotsf_int* outindex)
+{
+    dotsf_stack* stack = NULL;
+    if (stacknum < 0)
+    {
+        for (unsigned int i = 0; i < DOTSF_MAX_STACKS; i++)
+        {
+            stack = interp->stacks+i;
+            if (!stack->in_use)
+            {
+                stacknum = i;
+                goto foundslot;
+            }
+        }
+        return 1;
+    }
+    else {goto foundslot;}
+    foundslot:
+        if (stacknum >= DOTSF_MAX_STACKS){return 2;}
+        stack = (interp->stacks+stacknum);
+        if (stack->in_use){return 3;}
+        if (outindex != NULL){*outindex = stacknum;}
+        stack->maxstack = maxstack;
+        stack->stacktop = -1;
+        stack->stack = malloc(sizeof(dotsf_int)*maxstack);
+        stack->in_use = true;
+        if (!_dotsf_push(interp, stacknum)){return 4;}
+        return 0;
 }
 int dotsf_exec(dotsf_interpreter* interp, char* src)
 {
@@ -107,11 +167,16 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
     char* labels[26] = { };
     char* hashopend = NULL;
     char hashopval[DOTSF_MAX_HASHOP_VAL_SIZE] = { };
-    dotsf_int v1, v2, v3, rank1, ierank1;
+    dotsf_int _snum1, v1, v2, v3, rank1, ierank1;
+    dotsf_stack* stack = NULL;
     ierank1 = 0;
     int count = 0;
-    interp->stacktop = 0;
-    interp->stackempty = true;
+    for (unsigned int si = 0; si < DOTSF_MAX_STACKS; si++)
+    {
+        _dotsf_delete_stack(interp, si);
+    }
+    _dotsf_create_stack(interp, 0, DOTSF_MAX_STACK_SIZE, NULL);
+    _dotsf_pop(interp, &_snum1);
     for (char* ip2 = src; *ip2; ip2++)
     {
         if (*ip2 == '#')
@@ -299,7 +364,7 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
             }
             if (!_dotsf_push(interp, 0)){return -32;}
         }
-        else if (*ip == '~'){if (!_dotsf_popb_pusht(interp)){return -33;}}
+        else if (*ip == '~'){if (!_dotsf_popb_pusht(interp, interp->curstack)){return -33;}}
         else if (*ip == '#')
         {
             ip++;
@@ -318,6 +383,16 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                 default: return -60;
 
             }
+        }
+        else if (*ip == '`')
+        {
+            stack = interp->stacks+interp->curstack;
+            puts("\nTHE CURRENT STACK IS:\n");
+            for (dotsf_int sii = 0; sii <= stack->stacktop; sii++)
+            {
+                printf("%i = %i\n", sii, stack->stack[sii]);
+            }
+            puts("");
         }
         else {;}
     }
