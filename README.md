@@ -1,5 +1,5 @@
 # EXDotSF
-A written-from-scratch-in-C interpreter implementing my extensions of ArthroStar11's (https://esolangs.org/wiki/User:ArthroStar11) DotSF esolang.
+An interpreter written from scratch in C that implements my extensions of ArthroStar11's (https://esolangs.org/wiki/User:ArthroStar11) DotSF esolang.
 
 # Building
 - Clone this repo (or download as .zip and extract) to wherever you like on your machine's local storage
