@@ -421,6 +421,30 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                         else if (!_dotsf_gettop(interp, interp->curstack, &v1)){return -94;}
                         else if (!_dotsf_push_to_stack(interp, v2, v1)){return -95;}
                     }
+                    else if (strcmp(hashopval, "tfe") == 0) // tfa but pops off the other stack's bottom instead of the top
+                    {
+                        if (!_dotsf_pop(interp, &v2)){return -96;}
+                        else if (!_dotsf_popbottom(interp, v2, &v1)){return -97;}
+                        else if (!_dotsf_push_to_stack(interp, interp->curstack, v1)){return -98;}
+                    }
+                    else if (strcmp(hashopval, "tff") == 0) // tfb but peeks into the other stack's bottom instead of the top
+                    {
+                        if (!_dotsf_pop(interp, &v2)){return -99;}
+                        else if (!_dotsf_getbottom(interp, v2, &v1)){return -100;}
+                        else if (!_dotsf_push_to_stack(interp, interp->curstack, v1)){return -101;}
+                    }
+                    else if (strcmp(hashopval, "tfg") == 0) // vice versa of tfe
+                    {
+                        if (!_dotsf_pop(interp, &v2)){return -90;}
+                        else if (!_dotsf_popbottom(interp, interp->curstack, &v1)){return -91;}
+                        else if (!_dotsf_push_to_stack(interp, v2, v1)){return -92;}
+                    }
+                    else if (strcmp(hashopval, "tfh") == 0) // vice versa of tff.
+                    {
+                        if (!_dotsf_pop(interp, &v2)){return -90;}
+                        else if (!_dotsf_getbottom(interp, interp->curstack, &v1)){return -91;}
+                        else if (!_dotsf_push_to_stack(interp, v2, v1)){return -92;}
+                    }
                     else if (strcmp(hashopval, "gcs") == 0) //pushes the current stack index to the top of the current stack.
                     {
                         if (!_dotsf_push(interp, interp->curstack)){return -86;}
