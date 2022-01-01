@@ -164,12 +164,18 @@ int _dotsf_create_stack(dotsf_interpreter* interp, dotsf_int stacknum, dotsf_int
 int dotsf_exec(dotsf_interpreter* interp, char* src)
 {
     #define _dotsf_modulus(a, b) ((a < 0) ? (b) : ((__typeof__(b))0))+(a-(b*((__typeof__(a))(ssize_t)((double)a/(double)b))))
-    char* labels[26] = { };
+    typedef struct _dotsf_lbl {
+        bool active;
+        char* jmploc;
+        dotsf_int rank1, ierank1;
+    } _dotsf_lbl;
+    
+    _dotsf_lbl labels[26] = { };
     char* hashopend = NULL;
     char hashopval[DOTSF_MAX_HASHOP_VAL_SIZE] = { };
-    dotsf_int _snum1, v1, v2, v3, rank1, ierank1;
+    dotsf_int _snum1, v1, v2, v3, rank1 = 0, ierank1 = 0;
     dotsf_stack* stack = NULL;
-    ierank1 = 0;
+    //ierank1 = 0;
     int count = 0;
     int status1, status2, status3, status4;
     for (unsigned int si = 0; si < DOTSF_MAX_STACKS; si++)
@@ -180,6 +186,20 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
     _dotsf_pop(interp, &_snum1);
     for (char* ip2 = src; *ip2; ip2++)
     {
+        if (*ip2 == '!')
+        {
+            char* ending = strpbrk(ip2, "\r\n");
+            if (ending == NULL){break;}
+            ip2 = ending;
+        }
+        if (*ip2 == '?')
+        {
+            ierank1++;
+        }
+        if (*ip2 == '\'' && ierank1 > 0)
+        {
+            ierank1--;
+        }
         if (*ip2 == '#')
         {
             if (*++ip2 == 'c'){ip2+=2;}
@@ -189,13 +209,41 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                 if (ip2 == NULL){return -50;}
             }
         }
-        if (*ip2 >= 'A' && *ip2 <= 'Z'){labels[(*ip2)-'A'] = ip2;}
+        
+        //if (*ip2 == '['){rank1++;}
+        //if (*ip2 == ']' && rank1 > 0){rank1--;}
+        if ((*ip2 >= 'A') && (*ip2 <= 'Z'))
+        {
+            //printf("new label: %c\n", *ip2);
+            labels[(*ip2)-'A'] = (_dotsf_lbl){.active=true, .jmploc=ip2, .rank1=rank1, .ierank1=ierank1};
+        }
     }
-    for (char* ip = src; *ip; ip++)
+    rank1 = 0; ierank1 = 0;
+    for (char* ip = src; ; ip++)
     {
-        if (*ip >= 'a' && *ip <= 'z'){ip = labels[(*ip)-'a'];}
+        //printf("ip = %p\n", ip);
+        if (*ip == 0){return 0;}
+        else if (*ip == '!') //single-line comment
+        {
+            char* ending = strpbrk(ip, "\r\n"); //find the next linefeed.
+            if (ending == NULL){return 0;} //comment goes to EOF.
+            //printf("comment length = %zu\n", (size_t)(ending-ip));
+            ip = ending;
+            continue;
+        }   
+        else if ((*ip >= 'a') && (*ip <= 'z'))
+        {
+            //printf("lblname = %c\n", *ip);
+            //printf("lblpos = %zu\n", (size_t)(ip-src));
+            _dotsf_lbl lbl = labels[(*ip)-'a'];
+            if (!lbl.active){return -222;}
+            ip = lbl.jmploc;
+            ierank1 = lbl.ierank1;
+            rank1 = lbl.rank1;
+        }
         else if (*ip == '[')
         {
+            char* ending;
             if (!_dotsf_pop(interp, &v1)){return -10;}
             else if (!v1)
             {
@@ -204,6 +252,10 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                 {
                     switch (*ip)
                     {
+                        case '!':
+                            if ((ending = strpbrk(ip, "\r\n")) == NULL){return -203;}
+                            ip = ending;
+                            break;
                         case '[': rank1++; break;
                         case ']': rank1--; break;
                         case '\0': return -1;
@@ -321,6 +373,7 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
         }
         else if (*ip == '?')
         {
+            char* ending;
             if (!_dotsf_pop(interp, &v1)){return -30;}
             if (!v1)
             {
@@ -329,6 +382,21 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                 {
                     switch (*ip)
                     {
+                        case '#':
+                            switch (*(++ip))
+                            {
+                                case 'c': ip+=2; break;
+                                default:
+                                    ending = strchr(ip, '\\');
+                                    if (ending == NULL){return -200;}
+                                    ip = ending;
+                                    break;
+                            }
+                            break;
+                        case '!':
+                            if ((ending = strpbrk(ip, "\r\n")) == NULL){return -201;}
+                            ip = ending;
+                            break;
                         case '?': rank1++; break;
                         case '|': rank1--; break;
                         default: break;
@@ -343,13 +411,30 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
         }
         else if (*ip == '|' && ierank1 > 0)
         {
+            char* ending;
             ierank1--;
+            ip++;
             for (rank1 = 1; ; ip++)
             {
                 switch(*ip)
                 {
+                    case '#':
+                        switch (*(++ip))
+                        {
+                            case 'c': ip+=2; break;
+                            default:
+                                ending = strchr(ip, '\\');
+                                if (ending == NULL){return -200;}
+                                ip = ending;
+                                break;
+                        }
+                        break;
                     case '|': rank1++; break;
                     case '\'': rank1--; break;
+                    case '!':
+                        if ((ending = strpbrk(ip, "\r\n")) == NULL){return -202;}
+                        ip = ending;
+                        break;
                     default: break;
                 }
                 if (rank1 == 0){break;}
@@ -379,6 +464,17 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                     memcpy(hashopval, ip+1, hashopend-(ip+1));
                     if (!sscanf(hashopval, "%i", &v1)){return -53;}
                     if (!_dotsf_push(interp, v1)){return -54;}
+                    ip = hashopend;
+                    break;
+                case 'g':
+                    hashopend = strchr(ip, '\\');
+                    if (hashopend-(ip+1) >= DOTSF_MAX_HASHOP_VAL_SIZE){return -51;}
+                    memset(hashopval, 0, DOTSF_MAX_HASHOP_VAL_SIZE);
+                    memcpy(hashopval, ip+1, hashopend-(ip+1));
+                    if (strcmp(hashopval, "cs") == 0)
+                    {
+                        if (!_dotsf_push(interp, interp->curstack)){return -86;}
+                    }
                     ip = hashopend;
                     break;
                 case 's':
@@ -445,17 +541,22 @@ int dotsf_exec(dotsf_interpreter* interp, char* src)
                         else if (!_dotsf_getbottom(interp, interp->curstack, &v1)){return -91;}
                         else if (!_dotsf_push_to_stack(interp, v2, v1)){return -92;}
                     }
-                    else if (strcmp(hashopval, "gcs") == 0) //pushes the current stack index to the top of the current stack.
-                    {
-                        if (!_dotsf_push(interp, interp->curstack)){return -86;}
-                    }
-                    else if (strcmp(hashopval, "scs") == 0) //pops a value off the top of the current stack and use it to set the current stack index.
+                    else if (strcmp(hashopval, "cs") == 0) //pops a value off the top of the current stack and use it to set the current stack index.
                     {
                         if (!_dotsf_pop(interp, &v1)){return -87;}
+                        if (v1 < 0 || v1 >= DOTSF_MAX_STACKS){return -89;}
                         stack = interp->stacks+v1;
                         if (!stack->in_use){return -88;}
-                        if (v1 < 0 && v1 >= DOTSF_MAX_STACKS){return -89;}
                         interp->curstack = v1;
+                    }
+                    else if (strcmp(hashopval, "clr") == 0) //pops a value off the current stack (the requested stack index) and clears everything off that stack.
+                    {
+                        dotsf_int _dummy;
+                        if (!_dotsf_pop(interp, &v1)){return -107;}
+                        if (v1 < 0 || v1 >= DOTSF_MAX_STACKS){return -109;}
+                        stack = interp->stacks+v1;
+                        if (!stack->in_use){return -108;}
+                        while (_dotsf_pop_from_stack(interp, v1, &_dummy)){;}
                     }
                     ip = hashopend;
                     break;
@@ -496,6 +597,6 @@ int main(int argc, char** argv)
     fclose(fp);
 
     int res = dotsf_exec(&INTERP, program_src);
-    if (res < 0){printf("Error Status %i\n", res); return res;}
+    if (res < 0){printf("\nError Status %i\n", res); return res;}
     return res;
 }
